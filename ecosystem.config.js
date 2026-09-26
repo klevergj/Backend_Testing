@@ -2,8 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'backend-api',
-      script: './backend/node_modules/.bin/ts-node',
-      args: './backend/src/index.ts',
+      script: 'node_modules/.bin/ts-node',
+      args: 'src/index.ts',
+      cwd: './backend',
       env: {
         NODE_ENV: 'production',
         PORT: 3000
