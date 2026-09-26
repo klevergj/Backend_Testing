@@ -1,0 +1,87 @@
+config:
+  target: "http://localhost:3000/api/v1"
+  phases:
+    - duration: 10
+      arrivalRate: 5
+      name: "Tráfico Base (Carga Normal)"
+    - duration: 20
+      arrivalRate: 25
+      rampingTo: 50
+      name: "Saturación de Tráfico (Pico de Carga)"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Flujo Completo CRUD y Validaciones de Blindaje (Zod & Errores)"
+    flow:
+      # 1. PETICIÓN CORRECTA (Lectura general): GET /employees
+      - get:
+          url: "/employees"
+          expect:
+            - statusCode: 200
+
+      - think: 1
+
+      # 2. PETICIÓN CORRECTA (Creación): POST /employees con Payload Valido
+      - post:
+          url: "/employees"
+          json:
+            nombre: "Empleado Test Estrés"
+            cargo: "Analista de Pruebas"
+            departamento: "QA"
+            sueldo: 2500
+          capture:
+            json: "$.data._id"
+            as: "createdEmployeeId"
+          expect:
+            - statusCode: 201
+
+      - think: 1
+
+      # 3. PETICIÓN INCORRECTA (Validación DTO/Zod): POST con tipos y campos inválidos
+      # Debe retornar 400 Bad Request gracias al middleware de Zod
+      - post:
+          url: "/employees"
+          json:
+            nombre: ""               # Nombre vacío (falla validación)
+            cargo: "QA"
+            sueldo: "dos mil"         # Tipo incorrecto (debe ser number)
+          expect:
+            - statusCode: 400
+
+      - think: 1
+
+      # 4. PETICIÓN CORRECTA (Consulta Atómica): GET /employees/:id
+      - get:
+          url: "/employees/{{ createdEmployeeId }}"
+          expect:
+            - statusCode: 200
+
+      - think: 1
+
+      # 5. PETICIÓN INCORRECTA (Consulta por ID Inexistente): GET /employees/:id invalido
+      # Debe retornar 404 Not Found manejado por el Response Wrapper Pattern
+      - get:
+          url: "/employees/64b0f0000000000000000000"
+          expect:
+            - statusCode: 404
+
+      - think: 1
+
+      # 6. PETICIÓN CORRECTA (Actualización Parcial/Mutación Segura): PUT /employees/:id
+      - put:
+          url: "/employees/{{ createdEmployeeId }}"
+          json:
+            cargo: "Lead QA Automation"
+            sueldo: 3200
+          expect:
+            - statusCode: 200
+
+      - think: 1
+
+      # 7. PETICIÓN CORRECTA (Eliminación): DELETE /employees/:id
+      - delete:
+          url: "/employees/{{ createdEmployeeId }}"
+          expect:
+            - statusCode: 200
